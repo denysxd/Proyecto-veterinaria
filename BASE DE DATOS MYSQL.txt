@@ -1,0 +1,253 @@
+-- 1. CREAR BASE DE DATOS (O USARLA SI YA EXISTE)
+DROP DATABASE IF EXISTS veterinaria_almacen; 
+CREATE DATABASE IF NOT EXISTS veterinaria_almacen;
+USE veterinaria_almacen;
+
+-- =======================================================
+-- 9. TABLA DE ROLES (DEBE IR PRIMERO)
+-- =======================================================
+CREATE TABLE IF NOT EXISTS roles (
+    id INT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- 2. TABLA DE CATEGORÍAS
+CREATE TABLE IF NOT EXISTS Categoria (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL
+);
+
+-- 3. TABLA DE PROVEEDORES
+CREATE TABLE IF NOT EXISTS Proveedor (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    ruc VARCHAR(20),
+    telefono VARCHAR(20),
+    direccion VARCHAR(150)
+);
+
+-- 4. TABLA DE USUARIOS (¡AÑADIDA RELACIÓN CLAVE!)
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_usuario VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    contraseña VARCHAR(64) NOT NULL,
+    rol_id INT NOT NULL, 
+    activo BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    telefono VARCHAR(20) DEFAULT NULL,
+    -- AÑADIDO: LA RELACIÓN FORMAL CON LA TABLA ROLES
+    FOREIGN KEY (rol_id) REFERENCES roles(id) 
+);
+
+-- 5. TABLA DE PRODUCTOS (Incluye campos para RF17, RF34, RF36)
+CREATE TABLE IF NOT EXISTS Producto (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    cantidad INT DEFAULT 0,
+    precio DOUBLE NOT NULL,
+    fecha_fabricacion DATE,
+    fecha_caducidad DATE,
+    stock_minimo INT DEFAULT 5, 
+    estado VARCHAR(20) DEFAULT 'Activo', 
+    fecha_ultima_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    categoria_id INT,
+    proveedor_id INT,
+    FOREIGN KEY (categoria_id) REFERENCES Categoria(id),
+    FOREIGN KEY (proveedor_id) REFERENCES Proveedor(id)
+);
+
+-- 6. TABLA DE ALMACÉN / HISTORIAL (Incluye motivo RF9)
+CREATE TABLE IF NOT EXISTS almacen (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    producto_id INT NOT NULL,
+    cantidad_movimiento INT NOT NULL,
+    fecha_entrada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    usuario_id INT NOT NULL,
+    motivo VARCHAR(100) DEFAULT 'Venta',
+    FOREIGN KEY (producto_id) REFERENCES Producto(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+
+-- 7. TABLA DE AUDITORÍA DE LOGIN (RF39)
+CREATE TABLE IF NOT EXISTS historial_login (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id INT NOT NULL,
+    fecha_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_address VARCHAR(50),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
+-- 8. TABLA DE TOKENS DE RECUPERACIÓN (RF30)
+CREATE TABLE IF NOT EXISTS recuperacion_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id INT NOT NULL,
+    token VARCHAR(64) NOT NULL,
+    expiracion TIMESTAMP NOT NULL,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
+-- =======================================================
+-- DATOS DE PRUEBA (SEEDS)
+-- =======================================================
+
+-- Insertar Roles (ID 1 y 2)
+INSERT IGNORE INTO roles (id, nombre) VALUES (1, 'admin'), (2, 'usuario');
+
+-- Insertar Categoría y Proveedor Genéricos
+INSERT IGNORE INTO Categoria (id, nombre) VALUES (1, 'General');
+INSERT IGNORE INTO Proveedor (id, nombre, ruc, telefono, direccion) VALUES (1, 'Proveedor General', '00000000000', '000000', 'Ciudad');
+
+-- Insertar Usuarios con HASH y Teléfono
+INSERT IGNORE INTO usuarios (id, nombre_usuario, email, contraseña, rol_id, telefono) 
+VALUES 
+(1, 'Administrador', 'admin_123@gmail.com', SHA2('admin123', 256), 1, '+51980232864'),
+(2, 'Vendedor', 'user@gmail.com', SHA2('user123', 256), 2, '+51999999999');
+-- =======================================================
+-- DATOS DE PRUEBA (SEEDS) PARA INICIAR SIN ERRORES
+-- =======================================================
+
+-- Insertar Categoría y Proveedor Genéricos
+INSERT IGNORE INTO Categoria (id, nombre) VALUES (1, 'General');
+INSERT IGNORE INTO Proveedor (id, nombre, ruc, telefono, direccion) VALUES (1, 'Proveedor General', '00000000000', '000000', 'Ciudad');
+
+-- Insertar Usuario ADMINISTRADOR por defecto
+-- Usuario: admin_123@gmail.com
+-- Contraseña: admin123 (Encriptada automáticamente)
+-- Teléfono: +51999999999 (Cámbialo por el tuyo verificado en Twilio si quieres probar SMS con este user)
+INSERT IGNORE INTO usuarios (id, nombre_usuario, email, contraseña, rol_id, telefono) 
+VALUES (1, 'Administrador', 'admin_123@gmail.com', SHA2('admin123', 256), 1, '+51980232864');
+
+-- Insertar Usuario VENDEDOR de prueba
+INSERT IGNORE INTO usuarios (id, nombre_usuario, email, contraseña, rol_id, telefono) 
+VALUES (2, 'Vendedor', 'user@gmail.com', SHA2('user123', 256), 2, '+51999999999');
+-- =======================================================
+-- DATOS INICIALES (SEEDS)
+-- =======================================================
+
+-- 1. Insertar Categoría y Proveedor por defecto (Para evitar errores de FK)
+INSERT INTO Categoria (nombre) SELECT 'General' WHERE NOT EXISTS (SELECT * FROM Categoria);
+INSERT INTO Proveedor (nombre, ruc, telefono) SELECT 'Proveedor General', '00000000000', '000000' WHERE NOT EXISTS (SELECT * FROM Proveedor);
+
+-- 2. Insertar Usuario ADMINISTRADOR por defecto
+-- Usuario: admin_123@gmail.com
+-- Contraseña: admin123 (Encriptada con SHA-256)
+INSERT INTO usuarios (nombre_usuario, email, contraseña, rol_id) 
+SELECT 'Administrador', 'admin_123@gmail.com', SHA2('admin123', 256), 1
+WHERE NOT EXISTS (SELECT * FROM usuarios WHERE email = 'admin_123@gmail.com');
+
+-- 3. Insertar Usuario NORMAL de prueba
+-- Usuario: user@gmail.com
+-- Contraseña: user123
+INSERT INTO usuarios (nombre_usuario, email, contraseña, rol_id) 
+SELECT 'Vendedor', 'user@gmail.com', SHA2('user123', 256), 2
+WHERE NOT EXISTS (SELECT * FROM usuarios WHERE email = 'user@gmail.com');
+drop table roles;
+
+drop table usuarios;
+
+drop table almacen;
+
+drop table roles;
+
+drop table productos;
+
+drop table categoria;
+
+select*from Categoria;
+
+select*from Producto;
+
+select*from usuarios;
+
+select*from roles;
+
+select*from almacen;
+
+select*from almacen;
+
+select*from historial_login;
+
+-- Asegurarse de estar usando la base de datos correcta
+USE veterinaria_almacen;
+
+-- =======================================================
+-- 1. INSERCIÓN EN LA TABLA ROLES (DEBE IR PRIMERO)
+-- =======================================================
+INSERT IGNORE INTO roles (id, nombre) VALUES
+(1, 'admin'),
+(2, 'usuario');
+
+-- =======================================================
+-- 2. INSERCIÓN EN LA TABLA CATEGORIA
+-- =======================================================
+INSERT IGNORE INTO Categoria (id, nombre) VALUES
+(1, 'Medicamentos'),
+(2, 'Alimentos Secos'),
+(3, 'Juguetes'),
+(4, 'Accesorios');
+
+-- =======================================================
+-- 3. INSERCIÓN EN LA TABLA PROVEEDOR
+-- =======================================================
+INSERT IGNORE INTO Proveedor (id, nombre, ruc, telefono, direccion) VALUES
+(1, 'Pharma Vet', '10123456789', '+51940001111', 'Av. Las Flores 123'),
+(2, 'Distribuidora PetFood', '10987654321', '+51940002222', 'Calle Los Gatos 456'),
+(3, 'Importaciones Globales', '20112233445', '+51940003333', 'Jr. Sin Nombre 789');
+
+-- =======================================================
+-- 4. INSERCIÓN EN LA TABLA USUARIOS (CON HASH Y TELÉFONO)
+-- =======================================================
+
+-- Contraseña para todos: admin123 / user123
+-- Usamos SHA2('admin123', 256) y SHA2('user123', 256) para encriptar
+
+INSERT IGNORE INTO usuarios (id, nombre_usuario, email, contraseña, rol_id, telefono) VALUES
+(1, 'Admin Principal', 'veterinariagus@gmail.com', SHA2('admin123', 256), 1, '+51980232864'),
+(2, ' Denys', 'denysl.liza@gmail.com', SHA2('denys123', 256), 2, '+51926190913');
+
+-- Declarar variables para IDs de usuario/categoría/proveedor para el Producto
+SET @user_admin_id = 1;
+SET @prod_cat_id = 1; 
+SET @food_cat_id = 2;
+SET @proveedor_pharma_id = 1;
+SET @proveedor_food_id = 2;
+
+-- =======================================================
+-- 5. INSERCIÓN EN LA TABLA PRODUCTO
+-- =======================================================
+
+INSERT IGNORE INTO Producto (id, nombre, cantidad, precio, fecha_fabricacion, fecha_caducidad, stock_minimo, estado, categoria_id, proveedor_id) VALUES
+(101, 'Vacuna Antirrábica', 50, 85.50, '2024-01-01', '2025-12-31', 10, 'Activo', @prod_cat_id, @proveedor_pharma_id),
+(102, 'Canvo', 200, 150.00, '2025-10-01', '2026-03-01', 50, 'Activo', @food_cat_id, @proveedor_food_id),
+(103, 'Juguete Pelota Látex', 30, 15.00, '2025-05-01', '2030-01-01', 10, 'Activo', 3, @proveedor_food_id),
+(104, 'Producto Vencido Test', 10, 40.00, '2024-01-01', '2024-11-26', 10, 'Activo', @prod_cat_id, @proveedor_pharma_id); -- Vencido a propósito
+
+-- =======================================================
+-- 6. INSERCIÓN EN LA TABLA ALMACÉN (Movimientos de prueba)
+-- =======================================================
+
+-- Entrada inicial de la vacuna (Positivo)
+INSERT INTO almacen (producto_id, cantidad_movimiento, usuario_id, motivo) VALUES
+(101, 100, @user_admin_id, 'Inventario Inicial');
+
+-- Venta de alimento (Negativo)
+INSERT INTO almacen (producto_id, cantidad_movimiento, usuario_id, motivo) VALUES
+(102, -10, (SELECT id FROM usuarios WHERE email = 'denysl.liza@gmail.com'), 'Venta');
+
+-- Ajuste por caducidad (Negativo)
+INSERT INTO almacen (producto_id, cantidad_movimiento, usuario_id, motivo) VALUES
+(101, -5, @user_admin_id, 'Uso Interno / Muestra');
+
+-- =======================================================
+-- COMPROBACIÓN DE DATOS (OPCIONAL)
+-- =======================================================
+
+SELECT '--- TABLA ROLES ---' AS '';
+SELECT * FROM roles;
+SELECT '--- TABLA USUARIOS (HASHED) ---' AS '';
+SELECT id, nombre_usuario, email, telefono, rol_id FROM usuarios;
+SELECT '--- TABLA PRODUCTOS ---' AS '';
+SELECT id, nombre, cantidad, estado, fecha_caducidad, stock_minimo FROM Producto;
+SELECT '--- TABLA ALMACEN (HISTORIAL) ---' AS '';
+SELECT a.id, p.nombre AS Producto, a.cantidad_movimiento AS Cantidad, u.nombre_usuario AS Responsable, a.motivo FROM almacen a JOIN Producto p ON a.producto_id = p.id JOIN usuarios u ON a.usuario_id = u.id;
